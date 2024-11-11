@@ -7,59 +7,54 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For Clangd
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_CURRENT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
+# Define options for libraries
 option(HAVE_SDL "Enable SDL" OFF)
-option(HAVE_BOX2D "Enable Box2d" OFF)
+option(HAVE_BOX2D "Enable Box2D" OFF)
 option(HAVE_PREFIXED_RAYLIB "Enable Prefixed Raylib" OFF)
 
-if(HAVE_BOX2D)
+function(setup_library lib_name repo tag)
     FetchContent_Declare(
-        box2d
-        GIT_REPOSITORY https://github.com/erincatto/box2d.git
-        GIT_TAG main
+        ${lib_name}
+        GIT_REPOSITORY ${repo}
+        GIT_TAG ${tag}
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
     )
-    FetchContent_MakeAvailable(box2d)
-    set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/box2d-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
+    FetchContent_MakeAvailable(${lib_name})
+    set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/${lib_name}-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
+endfunction()
+
+if(HAVE_BOX2D)
+    setup_library(box2d https://github.com/erincatto/box2d.git main)
 else()
-    message(STATUS "Box2d not included. Set HAVE_BOX2D=ON to include Box2d. ")
+    message(STATUS "Box2D not included. Set HAVE_BOX2D=ON to include Box2D.")
 endif()
 
 if(HAVE_SDL)
-    # Have a look at https://wiki.libsdl.org/SDL2/README/cmake first.
-    # You can comment these out if you want.
+    # SDL specific options
     set(SDL_HAPTIC OFF CACHE BOOL "Disable SDL Haptic support" FORCE)
     set(SDL_SHARED OFF CACHE BOOL "Disable building SDL shared library" FORCE)
     set(SDL_STATIC ON CACHE BOOL "Enable building SDL static library" FORCE)
-    FetchContent_Declare(
-        SDL2
-        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG release-2.30.9
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE
-    )
+
+    setup_library(SDL2 https://github.com/libsdl-org/SDL.git release-2.30.9)
     add_definitions(-DSDL2_STATIC) # Uncomment -DHAVE_STRINGS_H=0 if needed
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON) # Also comment this if you decided not to build static lib
-    FetchContent_MakeAvailable(SDL2)
-    set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl2-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
-    set(SDL2_LIBS SDL2::SDL2main SDL2::SDL2-static) # Set these accordingly, if you decided not to build static lib
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(SDL2_LIBS SDL2::SDL2main SDL2::SDL2-static)
 else()
-    message(STATUS "SDL2 not included. Set HAVE_SDL=ON to include SDL2. ")
+    message(STATUS "SDL2 not included. Set HAVE_SDL=ON to include SDL2.")
 endif()
 
 if(HAVE_PREFIXED_RAYLIB)
     set(RAYLIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed_raylib)
-
     file(GLOB PREFIXED_RAYLIB_LIBS "${RAYLIB_PATH}/lib/*.a")
 else()
-    message(STATUS "Prefixed Raylib not included. Set HAVE_PREFIXED_RAYLIB=ON to include it. ")
+    message(STATUS "Prefixed Raylib not included. Set HAVE_PREFIXED_RAYLIB=ON to include it.")
 endif()
 
 file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 add_executable(game ${SRC})
 target_compile_options(game PRIVATE -Wall -Wno-ignored-pragmas -Wno-type-limits -Wno-implicit-function-declaration -std=c2x)
 
-# Link libraries if enabled
 if(HAVE_BOX2D)
     target_link_libraries(game PRIVATE box2d)
 endif()
