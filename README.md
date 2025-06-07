@@ -1,3 +1,6 @@
+
+# What is it ? 
+Downloads and builds libraries from source so that I don't have to suffer. 
 # Note 
 Build type is not specified in cmake. So it will build everything in debug mode.
 You can set it to release mode using -DCMAKE_BUILD_TYPE=Release flag. 
