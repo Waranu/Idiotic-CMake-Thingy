@@ -1,0 +1,57 @@
+{
+    "SDL2": {
+        "link": "https://github.com/libsdl-org/SDL.git",
+        "branch": "SDL2",
+        "depth": 1,
+        "unshallow": false
+    },
+    "CIMGUI": {
+        "link": "https://github.com/cimgui/cimgui",
+        "branch": "docking_inter",
+        "depth": 1,
+        "unshallow": false
+    },
+    "IMGUI": {
+        "link": "https://github.com/ocornut/imgui.git",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "ASIO_NON_BOOST": {
+        "link": "https://github.com/chriskohlhoff/asio",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "SOKOL": {
+        "link": "https://github.com/floooh/sokol",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "SDL3": {
+        "link": "https://github.com/libsdl-org/SDL",
+        "branch": "release-3.2.x",
+        "depth": 1,
+        "unshallow": false
+    },
+    "NUKLEAR": {
+        "link": "https://github.com/Immediate-Mode-UI/Nuklear",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "GLAD": {
+        "link": "https://github.com/arrayfire/glad.git",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "GLFW": {
+        "link": "https://github.com/glfw/glfw",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    }
+    
+}

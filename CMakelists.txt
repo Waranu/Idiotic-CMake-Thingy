@@ -1,17 +1,28 @@
 cmake_minimum_required(VERSION 3.22)
 include(FetchContent)
 
-project(game VERSION 1.0.0 LANGUAGES C)
+project(game VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 23)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # For Clangd
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CURRENT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
-# Define options for libraries
-option(HAVE_SDL "Enable SDL" OFF)
-option(HAVE_BOX2D "Enable Box2D" OFF)
-option(HAVE_PREFIXED_RAYLIB "Enable Prefixed Raylib" OFF)
+# Define options for libraries (these will be cache variables)
+set(SDL2 OFF CACHE BOOL "Enable SDL2")
+set(SDL3 OFF CACHE BOOL "Enable SDL3")
+set(SDL_SUITE OFF CACHE BOOL "Enable SDL")
+set(IMGUI OFF CACHE BOOL "Enable Imgui")
+set(BOX2D OFF CACHE BOOL "Enable Box2d")
+set(CIMGUI OFF CACHE BOOL "Enable Cimgui")
+set(PREFIXED_RAYLIB OFF CACHE BOOL "Enable Prefixed Raylib")
+set(SOKOL OFF CACHE BOOL "Enable Sokol")
+set(NUKLEAR OFF CACHE BOOL "Enable Nuklear")
+set(GLAD OFF CACHE BOOL "Enable GLAD")
+set(GLFW OFF CACHE BOOL "Enable GLFW")
 
+# Function to set up a library
 function(setup_library lib_name repo tag)
     FetchContent_Declare(
         ${lib_name}
@@ -24,51 +35,58 @@ function(setup_library lib_name repo tag)
     set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/${lib_name}-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
 endfunction()
 
-if(HAVE_BOX2D)
-    setup_library(box2d https://github.com/erincatto/box2d.git main)
-else()
-    message(STATUS "Box2D not included. Set HAVE_BOX2D=ON to include Box2D.")
-endif()
+file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+add_executable(game ${SRC})
+target_compile_options(game PRIVATE -Wextra -Wno-ignored-pragmas -std=gnu2x)
+set(Linking_libs)
 
-if(HAVE_SDL)
-    # SDL specific options
+# Library-specific configuration
+if(SDL2)
+    message(STATUS "Including library: SDL")
+    set(SDL2_BUILD_DIR ${CMAKE_SOURCE_DIR}/deps/SDL/build)
+
+    file(MAKE_DIRECTORY ${SDL2_BUILD_DIR})
     set(SDL_HAPTIC OFF CACHE BOOL "Disable SDL Haptic support" FORCE)
     set(SDL_SHARED OFF CACHE BOOL "Disable building SDL shared library" FORCE)
     set(SDL_STATIC ON CACHE BOOL "Enable building SDL static library" FORCE)
-
-    setup_library(SDL2 https://github.com/libsdl-org/SDL.git release-2.30.9)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL ${SDL2_BUILD_DIR})
     add_definitions(-DSDL2_STATIC) # Uncomment -DHAVE_STRINGS_H=0 if needed
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    set(SDL2_LIBS SDL2::SDL2main SDL2::SDL2-static)
-else()
-    message(STATUS "SDL2 not included. Set HAVE_SDL=ON to include SDL2.")
+    list(APPEND Linking_libs SDL2::SDL2main SDL2::SDL2-static)
 endif()
 
-if(HAVE_PREFIXED_RAYLIB)
-    set(RAYLIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed_raylib)
-    file(GLOB PREFIXED_RAYLIB_LIBS "${RAYLIB_PATH}/lib/*.a")
-else()
-    message(STATUS "Prefixed Raylib not included. Set HAVE_PREFIXED_RAYLIB=ON to include it.")
+if(SDL3)
+    message(STATUS "Including library: SDL")
+    set(SDL3_BUILD_DIR ${CMAKE_SOURCE_DIR}/deps/SDL/build)
+
+    file(MAKE_DIRECTORY ${SDL3_BUILD_DIR})
+    set(SDL_HAPTIC OFF CACHE BOOL "Disable SDL Haptic support" FORCE)
+    set(SDL_SHARED OFF CACHE BOOL "Disable building SDL shared library" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "Enable building SDL static library" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL ${SDL3_BUILD_DIR})
+    add_definitions(-DSDL3_STATIC) # Uncomment -DHAVE_STRINGS_H=0 if needed
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    list(APPEND Linking_libs SDL3::SDL3 SDL3::SDL3-static)
 endif()
 
-file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
-add_executable(game ${SRC})
-target_compile_options(game PRIVATE -Wall -Wno-ignored-pragmas -Wno-type-limits -Wno-implicit-function-declaration -std=c2x)
+if(SDL_SUITE)
+    message(STATUS "Including library: SDL_SUITE")
+    setup_library(SDL2_image https://github.com/libsdl-org/SDL_image.git release-2.8.2)
+    setup_library(SDL2_ttf https://github.com/libsdl-org/SDL_ttf.git release-2.22.0)
+    target_link_libraries(game PRIVATE SDL2_image::SDL2_image-static SDL2_ttf::SDL2_ttf-static)
+endif()
 
-if(HAVE_BOX2D)
+if(BOX2D)
+    message(STATUS "Including library: BOX2D")
+    setup_library(box2d https://github.com/erincatto/box2d.git main)
     target_link_libraries(game PRIVATE box2d)
 endif()
 
-if(HAVE_SDL)
-    target_link_libraries(game PRIVATE ${SDL2_LIBS})
-endif()
-
-if(HAVE_PREFIXED_RAYLIB)
-    if(EXISTS ${RAYLIB_PATH}/include)
-        target_include_directories(game PUBLIC ${RAYLIB_PATH}/include)
-    else()
-        message(WARNING "Raylib include directory not found at ${RAYLIB_PATH}/include")
-    endif()
+if(PREFIXED_RAYLIB)
+    message(STATUS "Including library: PREFIXED_RAYLIB")
+    set(RAYLIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed_raylib)
+    file(GLOB PREFIXED_RAYLIB_LIBS "${RAYLIB_PATH}/lib/*.a")
+    target_include_directories(game PUBLIC ${RAYLIB_PATH}/include)
 
     if(WIN32)
         target_link_libraries(game PRIVATE ${PREFIXED_RAYLIB_LIBS} opengl32 gdi32 winmm)
@@ -76,3 +94,150 @@ if(HAVE_PREFIXED_RAYLIB)
         target_link_libraries(game PRIVATE ${PREFIXED_RAYLIB_LIBS})
     endif()
 endif()
+
+if(CIMGUI)
+    message(STATUS "Including library: CIMGUI")
+    set(cimgui_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/cimgui)
+    set(cimgui_imgui_backend_path ${cimgui_path}/imgui/backends)
+    set(cimgui_imgui_table_source ${cimgui_path}/imgui/imgui_tables.cpp)
+
+    include_directories(${cimgui_path}/imgui)
+    include_directories(${cimgui_path})
+    include_directories(${cimgui_path}/generator/output/)
+
+    add_definitions("-DIMGUI_USER_CONFIG=\"../cimconfig.h\"")
+    add_definitions("-DIMGUI_DISABLE_OBSOLETE_FUNCTIONS=1")
+
+    if(WIN32)
+        add_definitions("-DIMGUI_IMPL_API=extern \"C\" __declspec\(dllexport\)")
+    else()
+        add_definitions("-DIMGUI_IMPL_API=extern \"C\"")
+    endif()
+
+    add_compile_definitions("IMGUI_IMPL_OPENGL_LOADER_GL3W")
+
+    set(cimgui_sources
+        ${cimgui_path}/cimgui.cpp
+        ${cimgui_path}/imgui/imgui.cpp
+        ${cimgui_path}/imgui/imgui_draw.cpp
+        ${cimgui_path}/imgui/imgui_demo.cpp
+        ${cimgui_path}/imgui/imgui_widgets.cpp
+        ${cimgui_imgui_table_source}
+    )
+
+    set(cimgui_libraries)
+
+    if(WIN32)
+        list(APPEND cimgui_libraries opengl32)
+    else()
+        list(APPEND cimgui_libraries GL)
+    endif()
+
+    # Create static library for ImGui
+    if(SDL AND NOT SOKOL)
+        list(APPEND cimgui_sources
+            ${cimgui_imgui_backend_path}/imgui_impl_sdl2.cpp)
+        list(APPEND cimgui_sources
+            ${cimgui_imgui_backend_path}/imgui_impl_opengl3.cpp)
+        add_compile_definitions(-DCIMGUI_USE_OPENGL3 -DCIMGUI_USE_SDL2)
+    endif()
+
+    add_library(cimgui STATIC ${cimgui_sources})
+
+    if(SDL AND NOT SOKOL)
+        target_link_libraries(cimgui ${cimgui_libraries} SDL2::SDL2-static)
+    else()
+        target_link_libraries(cimgui ${cimgui_libraries})
+    endif()
+
+    if(MINGW)
+        add_link_options("-mconsole")
+    endif()
+endif()
+
+if(IMGUI)
+    message(STATUS "Including library: IMGUI")
+    set(imgui_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui)
+    set(imgui_backend_path ${imgui_path}/backends)
+    set(imgui_table_src ${imgui_path}/imgui_tables.cpp)
+    set(imgui_sources
+        ${imgui_path}/imgui.cpp
+        ${imgui_path}/imgui_draw.cpp
+        ${imgui_path}/imgui_demo.cpp
+        ${imgui_path}/imgui_widgets.cpp
+        ${imgui_table_src}
+    )
+    set(imgui_libraries)
+
+    include_directories(${imgui_path}/)
+    include_directories(${imgui_backend_path}/)
+
+    if(SDL2 AND NOT SOKOL)
+        list(APPEND imgui_sources
+            ${imgui_backend_path}/imgui_impl_sdl2.cpp
+            ${imgui_backend_path}/imgui_impl_opengl3.cpp)
+        add_compile_definitions(-DSDL_MAIN_HANDLED)
+    endif()
+
+    add_library(imgui STATIC ${imgui_sources})
+    target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL/include)
+
+    if(SDL AND NOT SOKOL)
+        target_link_libraries(imgui ${imgui_libraries} SDL2::SDL2-static opengl32)
+    else()
+        target_link_libraries(imgui ${imgui_libraries})
+    endif()
+
+    target_link_libraries(game PRIVATE imgui opengl32)
+endif()
+
+if(SOKOL)
+    message(STATUS "Including library: SOKOL")
+    set(sokol ${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol)
+    include_directories(${sokol}/${sokol}/util/)
+    add_compile_definitions(-DSOKOL_IMPL)
+endif()
+
+if(NUKLEAR)
+    message(STATUS "Including library: NUKLEAR")
+    set(nuklear_build_folder ${CMAKE_CURRENT_SOURCE_DIR}/deps/Nuklear)
+    target_include_directories(game PUBLIC ${nuklear_build_folder}/)
+
+    if(((SDL2 OR SDL3) AND GLAD) AND NOT SOKOL)
+        target_include_directories(game PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/deps/Nuklear/demo/sdl_opengl3/
+        )
+        target_link_libraries(game PRIVATE opengl32)
+    elseif((SDL2 OR SDL3) AND NOT GLAD AND NOT SOKOL)
+        target_include_directories(game PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/deps/Nuklear/demo/sdl_renderer/
+        )
+    endif()
+endif()
+
+if(GLAD)
+    add_library(glad_static STATIC)
+    target_include_directories(glad_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad/include/)
+    target_sources(glad_static PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad/src/glad.c)
+    target_link_libraries(game PRIVATE glad_static)
+
+    if(WIN32)
+        target_link_libraries(game PRIVATE opengl32 gdi32)
+    endif()
+endif()
+
+if(GLFW)
+    set(glfw_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw/build)
+    file(MAKE_DIRECTORY ${glfw_build_dir})
+    set(GLFW_LIBRARY_TYPE STATIC CACHE STRING "Library type override for GLFW (STATIC, SHARED, OBJECT, or empty to follow BUILD_SHARED_LIBS)" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw ${glfw_build_dir})
+    target_include_directories(MyOpenGLApp PRIVATE ${CMAKE_SOURCE_DIR}/path/to/glfw/include) # Adjust if needed
+    target_link_libraries(game PRIVATE glfw)
+
+    if(WIN32)
+        target_link_libraries(game PRIVATE opengl32 gdi32)
+    endif()
+endif()
+
+# Game source files
+target_link_libraries(game PRIVATE ${Linking_libs})
