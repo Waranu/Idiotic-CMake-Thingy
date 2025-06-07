@@ -49,7 +49,7 @@ A minimal, hacky CMake template that builds libraries from source so I don't hav
 
 3. **Download libraries**:
    
-   Create a deps/ directory in this repo's cloned directory. 
+   Create a `deps/` directory in this repo's cloned directory. 
 
    The `download_libs.py` script reads a JSON file containing supported libraries. To download one or more libraries, run:
 
