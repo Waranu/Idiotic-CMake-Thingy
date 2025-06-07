@@ -11,8 +11,6 @@ set(CMAKE_CURRENT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
 
 # Define options for libraries (these will be cache variables)
 set(SDL2 OFF CACHE BOOL "Enable SDL2")
-set(SDL3 OFF CACHE BOOL "Enable SDL3")
-set(SDL_SUITE OFF CACHE BOOL "Enable SDL")
 set(IMGUI OFF CACHE BOOL "Enable Imgui")
 set(BOX2D OFF CACHE BOOL "Enable Box2d")
 set(CIMGUI OFF CACHE BOOL "Enable Cimgui")
@@ -21,19 +19,6 @@ set(SOKOL OFF CACHE BOOL "Enable Sokol")
 set(NUKLEAR OFF CACHE BOOL "Enable Nuklear")
 set(GLAD OFF CACHE BOOL "Enable GLAD")
 set(GLFW OFF CACHE BOOL "Enable GLFW")
-
-# Function to set up a library
-function(setup_library lib_name repo tag)
-    FetchContent_Declare(
-        ${lib_name}
-        GIT_REPOSITORY ${repo}
-        GIT_TAG ${tag}
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE
-    )
-    FetchContent_MakeAvailable(${lib_name})
-    set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/${lib_name}-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
-endfunction()
 
 file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 add_executable(game ${SRC})
@@ -53,27 +38,6 @@ if(SDL2)
     add_definitions(-DSDL2_STATIC) # Uncomment -DHAVE_STRINGS_H=0 if needed
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     list(APPEND Linking_libs SDL2::SDL2main SDL2::SDL2-static)
-endif()
-
-if(SDL3)
-    message(STATUS "Including library: SDL")
-    set(SDL3_BUILD_DIR ${CMAKE_SOURCE_DIR}/deps/SDL/build)
-
-    file(MAKE_DIRECTORY ${SDL3_BUILD_DIR})
-    set(SDL_HAPTIC OFF CACHE BOOL "Disable SDL Haptic support" FORCE)
-    set(SDL_SHARED OFF CACHE BOOL "Disable building SDL shared library" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "Enable building SDL static library" FORCE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL ${SDL3_BUILD_DIR})
-    add_definitions(-DSDL3_STATIC) # Uncomment -DHAVE_STRINGS_H=0 if needed
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    list(APPEND Linking_libs SDL3::SDL3 SDL3::SDL3-static)
-endif()
-
-if(SDL_SUITE)
-    message(STATUS "Including library: SDL_SUITE")
-    setup_library(SDL2_image https://github.com/libsdl-org/SDL_image.git release-2.8.2)
-    setup_library(SDL2_ttf https://github.com/libsdl-org/SDL_ttf.git release-2.22.0)
-    target_link_libraries(game PRIVATE SDL2_image::SDL2_image-static SDL2_ttf::SDL2_ttf-static)
 endif()
 
 if(BOX2D)
@@ -231,7 +195,7 @@ if(GLFW)
     file(MAKE_DIRECTORY ${glfw_build_dir})
     set(GLFW_LIBRARY_TYPE STATIC CACHE STRING "Library type override for GLFW (STATIC, SHARED, OBJECT, or empty to follow BUILD_SHARED_LIBS)" FORCE)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw ${glfw_build_dir})
-    target_include_directories(MyOpenGLApp PRIVATE ${CMAKE_SOURCE_DIR}/path/to/glfw/include) # Adjust if needed
+    target_include_directories(game PRIVATE ${CMAKE_SOURCE_DIR}/deps/glfw/include/GLFW/)
     target_link_libraries(game PRIVATE glfw)
 
     if(WIN32)

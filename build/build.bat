@@ -1,1 +1,0 @@
-cmake ../ -G "MinGW Makefiles" -DSDL2=ON -DNUKLEAR=ON
