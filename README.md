@@ -72,7 +72,7 @@ A minimal, hacky CMake template that builds libraries from source so I don't hav
       ```bash
       cmake -G
       ```
-   2. In the `build/` folder, create a shell (or .ps1/.cmd) script named `build.sh` (or `.ps1`/`.cmd`) with the following content:
+   2. Create a `build/` folder, and create a shell (or .ps1/.cmd) script named `build.sh` (or `.ps1`/`.cmd`) in it, with the following content:
 
       ```bash
       cmake .. 
