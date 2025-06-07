@@ -77,8 +77,7 @@ A minimal, hacky CMake template that builds libraries from source so I don't hav
    2. Create a `build/` folder, and create a shell (or .ps1/.cmd) script named `build.sh` (or `.ps1`/`.cmd`) in it, with the following content:
 
       ```bash
-      cmake .. 
-        -G "[YOUR_GENERATOR_NAME]" -D[LIB_NAME]=ON -D[ANOTHER_LIB]=ON -DCMAKE_C_COMPILER=[your_c_compiler]-DCMAKE_CXX_COMPILER=[your_cxx_compiler]
+      cmake .. -G "[YOUR_GENERATOR_NAME]" -D[LIB_NAME]=ON -D[ANOTHER_LIB]=ON -DCMAKE_C_COMPILER=[your_c_compiler]-DCMAKE_CXX_COMPILER=[your_cxx_compiler]
       ```
 
       > **Note:** Lib names in json and cmake are exactly the same. 
