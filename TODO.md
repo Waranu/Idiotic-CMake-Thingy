@@ -1,3 +1,4 @@
 - Create a section dedicated to listing which libs are supported by this. Which are but need more work. Which have bugs etc.
 - Fix the inconsistent style of vars.  
 - Creation of ```deps/``` and ```build/``` should be delegated to python script instead. 
+- At this point, direct "vendored" stuff is better for libs that like IMGUI and NUKCLEAR

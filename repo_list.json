@@ -46,6 +46,23 @@
         "branch": "master",
         "depth": 1,
         "unshallow": false
+    },
+    "RAYLIB_CPP": {
+        "link": "https://github.com/RobLoach/raylib-cpp.git",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "RAYLIB": {
+        "link": "https://github.com/raysan5/raylib.git",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "ENET": {
+        "link": "https://github.com/zpl-c/enet.git",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
     }
-    
 }

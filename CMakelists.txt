@@ -14,15 +14,18 @@ set(SDL2 OFF CACHE BOOL "Enable SDL2")
 set(IMGUI OFF CACHE BOOL "Enable Imgui")
 set(BOX2D OFF CACHE BOOL "Enable Box2d")
 set(CIMGUI OFF CACHE BOOL "Enable Cimgui")
+set(RAYLIB OFF CACHE BOOL "Enable Raylib")
 set(PREFIXED_RAYLIB OFF CACHE BOOL "Enable Prefixed Raylib")
+set(RAYLIB_CPP OFF CACHE BOOL "Enable Raylib-cpp")
 set(SOKOL OFF CACHE BOOL "Enable Sokol")
 set(NUKLEAR OFF CACHE BOOL "Enable Nuklear")
 set(GLAD OFF CACHE BOOL "Enable GLAD")
 set(GLFW OFF CACHE BOOL "Enable GLFW")
+set(ENET OFF CACHE BOOL "Enable ENET")
 
-file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 add_executable(game ${SRC})
-target_compile_options(game PRIVATE -Wextra -Wno-ignored-pragmas -std=gnu2x)
+target_compile_options(game PRIVATE -Wextra -Wno-ignored-pragmas -Wmissing-field-initializers -std=gnu++23)
 set(Linking_libs)
 
 # Library-specific configuration
@@ -47,15 +50,38 @@ if(BOX2D)
 endif()
 
 if(PREFIXED_RAYLIB)
-    message(STATUS "Including library: PREFIXED_RAYLIB")
-    set(RAYLIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed_raylib)
-    file(GLOB PREFIXED_RAYLIB_LIBS "${RAYLIB_PATH}/lib/*.a")
-    target_include_directories(game PUBLIC ${RAYLIB_PATH}/include)
+    message(STATUS "Including library: Raylib")
+    set(raylib_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed-raylib/build)
+    file(MAKE_DIRECTORY ${raylib_build_dir})
+    set(CMAKE_BUILD_TYPE Debug)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Enable building Prefixed-Raylib static library" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed-raylib ${raylib_build_dir})
+    target_link_libraries(game PRIVATE raylib)
+endif()
 
-    if(WIN32)
-        target_link_libraries(game PRIVATE ${PREFIXED_RAYLIB_LIBS} opengl32 gdi32 winmm)
+if(RAYLIB)
+    message(STATUS "Including library: Raylib")
+    set(raylib_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib/build)
+    file(MAKE_DIRECTORY ${raylib_build_dir})
+    set(CMAKE_BUILD_TYPE Debug)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib ${raylib_build_dir})
+    target_link_libraries(game PRIVATE raylib)
+endif()
+
+if(RAYLIB_CPP)
+    message(STATUS "Including library: Raylib-cpp")
+
+    if(RAYLIB)
+        set(raylib_cpp_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib-cpp/build)
+        file(MAKE_DIRECTORY ${raylib_cpp_build_dir})
+        set(BUILD_RAYLIB_CPP_STATIC ON CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
+        target_include_directories(game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib-cpp/include)
+        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib-cpp ${raylib_cpp_build_dir})
+        target_link_libraries(game PUBLIC raylib_cpp)
+
     else()
-        target_link_libraries(game PRIVATE ${PREFIXED_RAYLIB_LIBS})
+        message(STATUS "Error: RAYLIB Flag is not set.")
     endif()
 endif()
 
@@ -121,7 +147,7 @@ endif()
 
 if(IMGUI)
     message(STATUS "Including library: IMGUI")
-    set(imgui_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui)
+    set(imgui_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/imgui)
     set(imgui_backend_path ${imgui_path}/backends)
     set(imgui_table_src ${imgui_path}/imgui_tables.cpp)
     set(imgui_sources
@@ -131,10 +157,6 @@ if(IMGUI)
         ${imgui_path}/imgui_widgets.cpp
         ${imgui_table_src}
     )
-    set(imgui_libraries)
-
-    include_directories(${imgui_path}/)
-    include_directories(${imgui_backend_path}/)
 
     if(SDL2 AND NOT SOKOL)
         list(APPEND imgui_sources
@@ -143,13 +165,21 @@ if(IMGUI)
         add_compile_definitions(-DSDL_MAIN_HANDLED)
     endif()
 
-    add_library(imgui STATIC ${imgui_sources})
-    target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL/include)
+    if(PREFIXED_RAYLIB)
+        list(APPEND imgui_sources ${imgui_backend_path}/rlImGui.cpp)
+    endif()
+
+    add_library(imgui STATIC)
+    target_include_directories(imgui PUBLIC ${imgui_path}/)
+    target_include_directories(imgui PUBLIC ${imgui_backend_path}/)
+    target_sources(imgui PRIVATE ${imgui_sources})
 
     if(SDL AND NOT SOKOL)
-        target_link_libraries(imgui ${imgui_libraries} SDL2::SDL2-static opengl32)
+        target_include_directories(imgui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL/include)
+        target_link_libraries(imgui PRIVATE SDL2::SDL2-static opengl32)
+    elseif(PREFIXED_RAYLIB)
+        target_link_libraries(imgui PRIVATE raylib)
     else()
-        target_link_libraries(imgui ${imgui_libraries})
     endif()
 
     target_link_libraries(game PRIVATE imgui opengl32)
@@ -164,18 +194,23 @@ endif()
 
 if(NUKLEAR)
     message(STATUS "Including library: NUKLEAR")
-    set(nuklear_build_folder ${CMAKE_CURRENT_SOURCE_DIR}/deps/Nuklear)
-    target_include_directories(game PUBLIC ${nuklear_build_folder}/)
+    add_library(nuklear_static STATIC)
+    set(nuklear_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear)
+    target_include_directories(nuklear_static PUBLIC ${nuklear_path}/)
+    target_sources(nuklear_static PRIVATE ${nuklear_path}/nuklear.c)
+    target_link_libraries(game PRIVATE nuklear_static)
 
     if(((SDL2 OR SDL3) AND GLAD) AND NOT SOKOL)
         target_include_directories(game PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/deps/Nuklear/demo/sdl_opengl3/
+            ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear/demo/sdl_opengl3/
         )
         target_link_libraries(game PRIVATE opengl32)
     elseif((SDL2 OR SDL3) AND NOT GLAD AND NOT SOKOL)
         target_include_directories(game PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/deps/Nuklear/demo/sdl_renderer/
+            ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear/demo/sdl_renderer/
         )
+    elseif(PREFIXED_RAYLIB)
+        target_include_directories(game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear/demo/raylib)
     endif()
 endif()
 
@@ -201,6 +236,14 @@ if(GLFW)
     if(WIN32)
         target_link_libraries(game PRIVATE opengl32 gdi32)
     endif()
+endif()
+
+if(ENET)
+    set(enet_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/enet/build)
+    file(MAKE_DIRECTORY ${enet_build_dir})
+    set(ENET_STATIC ON CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/enet ${enet_build_dir})
+    target_link_libraries(game PRIVATE enet_static)
 endif()
 
 # Game source files
