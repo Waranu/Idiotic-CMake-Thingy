@@ -1,5 +1,11 @@
 Language: Cpp
 BasedOnStyle: Google
 IndentWidth: 4
-ColumnLimit: 80
+ColumnLimit: 65
 SpacesInParentheses: true
+
+MaxEmptyLinesToKeep: 1         # Allow max 1 consecutive blank line
+
+
+RemoveSemicolon: true          # Remove redundant semicolons
+SpacesInContainerLiterals: false

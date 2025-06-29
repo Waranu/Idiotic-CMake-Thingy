@@ -9,6 +9,7 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 .cache/
+deps/
 # requirements.txt
 # download_libs.py
 # repo_list.json
