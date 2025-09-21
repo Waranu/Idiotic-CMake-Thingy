@@ -17,9 +17,9 @@
 
 [CmdletBinding()]
 param(
-    [Alias('c')][Switch]$Clean,
-    [Alias('b')][Switch]$Build,
-    [Alias('r')][Switch]$Run
+  [Alias('c')][Switch]$Clean,
+  [Alias('b')][Switch]$Build,
+  [Alias('r')][Switch]$Run
 )
 
 # Name of this script, so we don't delete it when cleaning
@@ -27,21 +27,23 @@ $scriptName = $MyInvocation.MyCommand.Name
 
 # 1) CLEAN
 if ($Clean) {
-    Write-Host "🧹 Cleaning directory (excluding $scriptName)..." -ForegroundColor Yellow
-    Get-ChildItem -Force |
-      Where-Object { $_.Name -ne $scriptName } |
-      ForEach-Object {
-        try {
-          if ($_.PSIsContainer) {
-            Remove-Item $_.FullName -Recurse -Force -ErrorAction Stop
-          } else {
-            Remove-Item $_.FullName -Force -ErrorAction Stop
-          }
-        } catch {
-          Write-Warning "Could not remove $($_.FullName): $_"
-        }
+  Write-Host "🧹 Cleaning directory (excluding $scriptName)..." -ForegroundColor Yellow
+  Get-ChildItem -Force |
+  Where-Object { $_.Name -ne $scriptName } |
+  ForEach-Object {
+    try {
+      if ($_.PSIsContainer) {
+        Remove-Item $_.FullName -Recurse -Force -ErrorAction Stop
       }
-    Write-Host "✅ Clean complete.`n"
+      else {
+        Remove-Item $_.FullName -Force -ErrorAction Stop
+      }
+    }
+    catch {
+      Write-Warning "Could not remove $($_.FullName): $_"
+    }
+  }
+  Write-Host "✅ Clean complete.`n"
 }
 
 # Determine if we need to run Ninja at all
@@ -50,33 +52,31 @@ $needNinja = $Build -or $Run
 # 2) CONFIGURE
 # Configure if we're building, or if no build/run flags were given (i.e. default mode)
 if ($Build -or (-not $needNinja)) {
-    Write-Host "⚙️  Running CMake configure..." -ForegroundColor Cyan
-    cmake .. `
-      -G "Ninja" `
-      -DPREFIXED_RAYLIB=ON `
-      -DIMGUI=ON `
-      -DENET=ON `
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
-      -DCMAKE_C_COMPILER=clang `
-      -DCMAKE_CXX_COMPILER=clang++
+  Write-Host "⚙️  Running CMake configure..." -ForegroundColor Cyan
+  cmake .. `
+    -G "Ninja" `
+    -DPREFIXED_RAYLIB=ON `
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
+    -DCMAKE_C_COMPILER=clang `
+    -DCMAKE_CXX_COMPILER=clang++
 }
 
 # 3) BUILD
 if ($needNinja) {
-    Write-Host "`n🔨 Building with ninja..." -ForegroundColor Cyan
-    ninja
+  Write-Host "`n🔨 Building with ninja..." -ForegroundColor Cyan
+  ninja
 }
 
 # 4) RUN
 if ($Run) {
-    Write-Host "`n🔍 Scanning for .exe in $PWD ..." -ForegroundColor Cyan
-    $exe = Get-ChildItem -Path . -Filter *.exe -File | Select-Object -First 1
+  Write-Host "`n🔍 Scanning for .exe in $PWD ..." -ForegroundColor Cyan
+  $exe = Get-ChildItem -Path . -Filter *.exe -File | Select-Object -First 1
 
-    if (-not $exe) {
-        Write-Error "No executable (*.exe) found in current directory!"
-        exit 1
-    }
+  if (-not $exe) {
+    Write-Error "No executable (*.exe) found in current directory!"
+    exit 1
+  }
 
-    Write-Host "🚀 Launching $($exe.Name) ..." -ForegroundColor Green
-    & .\"$($exe.Name)"
+  Write-Host "🚀 Launching $($exe.Name) ..." -ForegroundColor Green
+  & .\"$($exe.Name)"
 }
