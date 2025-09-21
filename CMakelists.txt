@@ -1,46 +1,58 @@
-cmake_minimum_required(VERSION 3.22)
-include(FetchContent)
+cmake_minimum_required(VERSION 3.28)
+
 
 project(game VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CURRENT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
+set(CMAKE_BUILD_TYPE Debug)
 
 # Define options for libraries (these will be cache variables)
-set(SDL2 OFF CACHE BOOL "Enable SDL2")
-set(IMGUI OFF CACHE BOOL "Enable Imgui")
-set(BOX2D OFF CACHE BOOL "Enable Box2d")
-set(CIMGUI OFF CACHE BOOL "Enable Cimgui")
-set(RAYLIB OFF CACHE BOOL "Enable Raylib")
-set(PREFIXED_RAYLIB OFF CACHE BOOL "Enable Prefixed Raylib")
-set(RAYLIB_CPP OFF CACHE BOOL "Enable Raylib-cpp")
-set(SOKOL OFF CACHE BOOL "Enable Sokol")
-set(NUKLEAR OFF CACHE BOOL "Enable Nuklear")
-set(GLAD OFF CACHE BOOL "Enable GLAD")
-set(GLFW OFF CACHE BOOL "Enable GLFW")
-set(ENET OFF CACHE BOOL "Enable ENET")
+option(SDL2 "Enable SDL2" OFF)
+option(IMGUI "Enable Imgui" OFF)
+option(BOX2D "Enable Box2d" OFF)
+option(CIMGUI "Enable Cimgui" OFF)
+option(RAYLIB "Enable Raylib" OFF)
+option(PREFIXED_RAYLIB "Enable Prefixed Raylib" OFF)
+option(SDL3 "Enable SDL3" OFF)
+option(D3D11 "Enable D3D11" OFF)
+option(DXTK "Enable DXTK" OFF)
+option(SOKOL "Enable Sokol" OFF)
+option(NUKLEAR "Enable Nuklear" OFF)
+option(GLAD "Enable GLAD" OFF)
+option(GLFW "Enable GLFW" OFF)
+option(ENET "Enable ENET" OFF)
+option(MAGIC_ENUM "Include Magic Enum" OFF)
+
+
 
 file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 add_executable(game ${SRC})
-target_compile_options(game PRIVATE -Wextra -Wno-ignored-pragmas -Wmissing-field-initializers -std=gnu++23)
-set(Linking_libs)
+target_compile_features(game PRIVATE cxx_std_23)
 
 # Library-specific configuration
 if(SDL2)
-    message(STATUS "Including library: SDL")
-    set(SDL2_BUILD_DIR ${CMAKE_SOURCE_DIR}/deps/SDL/build)
+    message("Including SDL3.")
 
-    file(MAKE_DIRECTORY ${SDL2_BUILD_DIR})
-    set(SDL_HAPTIC OFF CACHE BOOL "Disable SDL Haptic support" FORCE)
-    set(SDL_SHARED OFF CACHE BOOL "Disable building SDL shared library" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "Enable building SDL static library" FORCE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL ${SDL2_BUILD_DIR})
-    add_definitions(-DSDL2_STATIC) # Uncomment -DHAVE_STRINGS_H=0 if needed
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    list(APPEND Linking_libs SDL2::SDL2main SDL2::SDL2-static)
+    # option(SDL_STATIC "Enable/Disable static linking for SDL2" ON)
+    option(SDL_SHARED "Enable/Disable shared linking for SDL2" OFF)
+    set(sdl_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL)
+    set(sdl_build_path ${sdl_path}/build)
+    file(MAKE_DIRECTORY ${sdl_build_path})
+    add_subdirectory(${sdl_path} ${sdl_build_path} EXCLUDE_FROM_ALL)
+    target_link_libraries(game PRIVATE SDL2::SDL2main SDL2::SDL2-static)
+endif()
+
+if(SDL3)
+    message("Including SDL3.")
+    option(SDL_STATIC "Enable/Disable static linking for SDL3" ON)
+    option(SDL_SHARED "Enable/Disable shared linking for SDL3" OFF)
+    set(sdl_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL)
+    set(sdl_build_path ${sdl_path}/build)
+    file(MAKE_DIRECTORY ${sdl_build_path})
+    add_subdirectory(${sdl_path} ${sdl_build_path} EXCLUDE_FROM_ALL)
+    target_link_libraries(game PRIVATE SDL3::SDL3-static)
 endif()
 
 if(BOX2D)
@@ -53,7 +65,6 @@ if(PREFIXED_RAYLIB)
     message(STATUS "Including library: Raylib")
     set(raylib_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed-raylib/build)
     file(MAKE_DIRECTORY ${raylib_build_dir})
-    set(CMAKE_BUILD_TYPE Debug)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Enable building Prefixed-Raylib static library" FORCE)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed-raylib ${raylib_build_dir})
     target_link_libraries(game PRIVATE raylib)
@@ -63,87 +74,13 @@ if(RAYLIB)
     message(STATUS "Including library: Raylib")
     set(raylib_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib/build)
     file(MAKE_DIRECTORY ${raylib_build_dir})
-    set(CMAKE_BUILD_TYPE Debug)
+    
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib ${raylib_build_dir})
     target_link_libraries(game PRIVATE raylib)
 endif()
 
-if(RAYLIB_CPP)
-    message(STATUS "Including library: Raylib-cpp")
 
-    if(RAYLIB)
-        set(raylib_cpp_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib-cpp/build)
-        file(MAKE_DIRECTORY ${raylib_cpp_build_dir})
-        set(BUILD_RAYLIB_CPP_STATIC ON CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
-        target_include_directories(game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib-cpp/include)
-        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib-cpp ${raylib_cpp_build_dir})
-        target_link_libraries(game PUBLIC raylib_cpp)
-
-    else()
-        message(STATUS "Error: RAYLIB Flag is not set.")
-    endif()
-endif()
-
-if(CIMGUI)
-    message(STATUS "Including library: CIMGUI")
-    set(cimgui_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/cimgui)
-    set(cimgui_imgui_backend_path ${cimgui_path}/imgui/backends)
-    set(cimgui_imgui_table_source ${cimgui_path}/imgui/imgui_tables.cpp)
-
-    include_directories(${cimgui_path}/imgui)
-    include_directories(${cimgui_path})
-    include_directories(${cimgui_path}/generator/output/)
-
-    add_definitions("-DIMGUI_USER_CONFIG=\"../cimconfig.h\"")
-    add_definitions("-DIMGUI_DISABLE_OBSOLETE_FUNCTIONS=1")
-
-    if(WIN32)
-        add_definitions("-DIMGUI_IMPL_API=extern \"C\" __declspec\(dllexport\)")
-    else()
-        add_definitions("-DIMGUI_IMPL_API=extern \"C\"")
-    endif()
-
-    add_compile_definitions("IMGUI_IMPL_OPENGL_LOADER_GL3W")
-
-    set(cimgui_sources
-        ${cimgui_path}/cimgui.cpp
-        ${cimgui_path}/imgui/imgui.cpp
-        ${cimgui_path}/imgui/imgui_draw.cpp
-        ${cimgui_path}/imgui/imgui_demo.cpp
-        ${cimgui_path}/imgui/imgui_widgets.cpp
-        ${cimgui_imgui_table_source}
-    )
-
-    set(cimgui_libraries)
-
-    if(WIN32)
-        list(APPEND cimgui_libraries opengl32)
-    else()
-        list(APPEND cimgui_libraries GL)
-    endif()
-
-    # Create static library for ImGui
-    if(SDL AND NOT SOKOL)
-        list(APPEND cimgui_sources
-            ${cimgui_imgui_backend_path}/imgui_impl_sdl2.cpp)
-        list(APPEND cimgui_sources
-            ${cimgui_imgui_backend_path}/imgui_impl_opengl3.cpp)
-        add_compile_definitions(-DCIMGUI_USE_OPENGL3 -DCIMGUI_USE_SDL2)
-    endif()
-
-    add_library(cimgui STATIC ${cimgui_sources})
-
-    if(SDL AND NOT SOKOL)
-        target_link_libraries(cimgui ${cimgui_libraries} SDL2::SDL2-static)
-    else()
-        target_link_libraries(cimgui ${cimgui_libraries})
-    endif()
-
-    if(MINGW)
-        add_link_options("-mconsole")
-    endif()
-endif()
 
 if(IMGUI)
     message(STATUS "Including library: IMGUI")
@@ -187,9 +124,12 @@ endif()
 
 if(SOKOL)
     message(STATUS "Including library: SOKOL")
-    set(sokol ${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol)
-    include_directories(${sokol}/${sokol}/util/)
-    add_compile_definitions(-DSOKOL_IMPL)
+    set(sokol_path ${${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol})
+    add_library(sokol_static STATIC)
+    target_include_directories(sokol_static PUBLIC ${sokol_path}/)
+    target_compile_definitions(sokol_impl PRIVATE SOKOL_IMPL)
+    target_sources(sokol_path PRIVATE ${sokol_path}/sokol_impl.c)
+    target_link_libraries(game PRIVATE sokol_impl)
 endif()
 
 if(NUKLEAR)
@@ -215,27 +155,62 @@ if(NUKLEAR)
 endif()
 
 if(GLAD)
-    add_library(glad_static STATIC)
-    target_include_directories(glad_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad/include/)
-    target_sources(glad_static PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad/src/glad.c)
-    target_link_libraries(game PRIVATE glad_static)
+    message("Including GLAD.")
+    set(glad_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad)
 
-    if(WIN32)
-        target_link_libraries(game PRIVATE opengl32 gdi32)
-    endif()
+   
+    add_library(glad STATIC ${glad_path}/src/glad.c)
+    target_include_directories(glad PUBLIC ${glad_path}/include) 
+    target_include_directories(game PUBLIC ${glad_path}/include/)
+
+    target_link_libraries(game PRIVATE glad)
+endif()
+if(D3D11)
+    message("Including D3D11.")
+    target_link_libraries(game PRIVATE d3d11.lib
+        dxgi.lib d3dcompiler.lib winmm.lib dxguid.lib winmm.lib)
+    add_custom_target(copy_shaders ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/build/shaders
+        COMMENT "Copying shaders to build directory"
+    )
+    add_dependencies(game copy_shaders)
+endif()
+
+if(DXTK)
+    message("Including DXTK")
+    option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
+    add_subdirectory(deps/DirectXTK deps/DirectXTK/build)
+    target_link_libraries(game PUBLIC DirectXTK)
 endif()
 
 if(GLFW)
-    set(glfw_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw/build)
-    file(MAKE_DIRECTORY ${glfw_build_dir})
-    set(GLFW_LIBRARY_TYPE STATIC CACHE STRING "Library type override for GLFW (STATIC, SHARED, OBJECT, or empty to follow BUILD_SHARED_LIBS)" FORCE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw ${glfw_build_dir})
-    target_include_directories(game PRIVATE ${CMAKE_SOURCE_DIR}/deps/glfw/include/GLFW/)
+    message("Including GLFW.")
+    set(GLFW_LIBRARY_TYPE STATIC)
+    set(glfw_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw)
+    set(glfw_build_path ${glfw_path}/build)
+    file(MAKE_DIRECTORY ${glfw_build_path})
+    add_subdirectory(${glfw_path} ${glfw_build_path} EXCLUDE_FROM_ALL)
     target_link_libraries(game PRIVATE glfw)
-
+endif()
+if(OPENGL)
+    message("Including OpenGL.")
+    find_package(OpenGL REQUIRED)
     if(WIN32)
-        target_link_libraries(game PRIVATE opengl32 gdi32)
+        target_link_libraries(game PRIVATE OpenGL::GL gdi32)
+    else()
+    find_package(Threads REQUIRED)
+find_package(X11 REQUIRED) 
+    target_link_libraries(game PRIVATE OpenGL::GL Threads::Threads ${X11_LIBRARIES} )
     endif()
+     add_custom_target(copy_shaders ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
+        ${CMAKE_CURRENT_SOURCE_DIR}/build/shaders
+        COMMENT "Copying shaders to build directory"
+    )
+    add_dependencies(game copy_shaders)
 endif()
 
 if(ENET)
@@ -246,5 +221,12 @@ if(ENET)
     target_link_libraries(game PRIVATE enet_static)
 endif()
 
-# Game source files
-target_link_libraries(game PRIVATE ${Linking_libs})
+
+if(MAGIC_ENUM)
+    message("Including Magic Enum")
+    set(magic_enum_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/magic_enum-0.9.7)
+    file(MAKE_DIRECTORY ${magic_enum_path}/build)
+    add_subdirectory(${magic_enum_path} ${magic_enum_path}/build EXCLUDE_FROM_ALL)
+
+    target_link_libraries(game PRIVATE magic_enum)
+endif()
