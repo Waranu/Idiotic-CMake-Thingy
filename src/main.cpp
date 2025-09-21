@@ -1,83 +1,57 @@
-/*******************************************************************************************
-*
-*   raylib-extras [ImGui] example - Simple Integration
-*
-*	This is a simple ImGui Integration
-*	It is done using C++ but with C style code
-*	It can be done in C as well if you use the C ImGui wrapper
-*	https://github.com/cimgui/cimgui
-*
-*   Copyright (c) 2021 Jeffery Myers
-*
-********************************************************************************************/
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_gpu.h>
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
 
-#include "raylib.h"
-#include "raymath.h"
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_init.h"
+#include "SDL3/SDL_keycode.h"
+#include "SDL3/SDL_video.h"
 
-#include "imgui.h"
-#include "rlImGui.h"
+uint32_t width = 1024;
+uint32_t height = 800;
 
+int main() {
+    if ( !SDL_Init( SDL_INIT_VIDEO ) ) return -1;
 
-// DPI scaling functions
-float ScaleToDPIF(float value)
-{
-    return RL_GetWindowScaleDPI().x * value;
-}
+    SDL_Window* window = SDL_CreateWindow(
+        "A GPU Window", width, height, SDL_EVENT_WINDOW_SHOWN );
 
-int ScaleToDPII(int value)
-{
-    return int(RL_GetWindowScaleDPI().x * value);
-}
+    SDL_GPUDevice* gpu = SDL_CreateGPUDevice(
+        SDL_GPU_SHADERFORMAT_SPIRV, true, nullptr );
 
-int main(int argc, char* argv[])
-{
-	// Initialization
-	//--------------------------------------------------------------------------------------
-	int screenWidth = 1280;
-	int screenHeight = 800;
+    if ( !SDL_ClaimWindowForGPUDevice( gpu, window ) ) {
+        printf( "Failed to claim window for GPU\n" );
+        return -1;
+    }
 
-	RL_SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
-	RL_InitWindow(screenWidth, screenHeight, "raylib-Extras [ImGui] example - simple ImGui Demo");
-	RL_SetTargetFPS(144);
-	rlImGuiSetup(true);
+    bool run = true;
+    SDL_Event event = {};
+    while ( run ) {
+        while ( SDL_PollEvent( &event ) ) {
+            switch ( event.type ) {
+                case SDL_EVENT_QUIT:
+                    run = false;
+                    break;
+                case SDL_EVENT_KEY_DOWN:
+                    if ( event.key.key == SDLK_ESCAPE ) {
+                        run = false;
+                    }
+                    break;
+            }
+        }
+    }
 
-	RL_Texture image = RL_LoadTexture("resources/parrots.png");
+    SDL_GPUCommandBuffer* commandBuffer =
+        SDL_AcquireGPUCommandBuffer( gpu );
 
-	// Main game loop
-	while (!RL_WindowShouldClose())    // Detect window close button or ESC key
-	{
-		RL_BeginDrawing();
-		RL_ClearBackground(RL_DARKGRAY);
+    SDL_GPUTexture* swapchain = nullptr;
+    SDL_WaitAndAcquireGPUSwapchainTexture(
+        commandBuffer, window, &swapchain, &width, &height );
 
-		// start ImGui Conent
-		rlImGuiBegin();
+    assert( SDL_SubmitGPUCommandBuffer( commandBuffer ) );
 
-		// show ImGui Content
-		bool open = true;
-		ImGui::ShowDemoWindow(&open);
-
-		open = true;
-		if (ImGui::Begin("Test Window", &open))
-		{
-			ImGui::TextUnformatted(ICON_FA_JEDI);
-
-			rlImGuiImage(&image);
-		}
-		ImGui::End();
-
-		// end ImGui Content
-		rlImGuiEnd();
-
-		RL_EndDrawing();
-		//----------------------------------------------------------------------------------
-	}
-
-	// De-Initialization
-	//--------------------------------------------------------------------------------------   
-    rlImGuiShutdown();
-	RL_UnloadTexture(image);
-	RL_CloseWindow();        // Close window and OpenGL context
-	//--------------------------------------------------------------------------------------
-
-	return 0;
+    SDL_Quit();
+    return 0;
 }

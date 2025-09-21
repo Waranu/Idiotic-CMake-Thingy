@@ -5,6 +5,12 @@
         "depth": 1,
         "unshallow": false
     },
+    "SDL3": {
+        "link": "https://github.com/libsdl-org/SDL.git",
+        "branch": "release-3.2.x",
+        "depth": 1,
+        "unshallow": false
+    },
     "BOX2D": {
         "link": "https://github.com/erincatto/box2d.git",
         "branch": "main",
@@ -56,6 +62,12 @@
     "RAYLIB": {
         "link": "https://github.com/raysan5/raylib.git",
         "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "DXTK": {
+        "link": "https://github.com/microsoft/DirectXTK.git",
+        "branch": "main",
         "depth": 1,
         "unshallow": false
     },
