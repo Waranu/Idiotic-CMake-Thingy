@@ -76,5 +76,41 @@
         "branch": "master",
         "depth": 1,
         "unshallow": false
+    },
+    "MAGIC_ENUM": {
+        "link": "https://github.com/Neargye/magic_enum",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "GLM": {
+        "link": "https://github.com/g-truc/glm",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "VKBOOTSTRAP": {
+        "link": "https://github.com/charles-lunarg/vk-bootstrap",
+        "branch": "main",
+        "depth": 1,
+        "unshallow": false
+    },
+    "STBLIBS": {
+        "link": "https://github.com/nothings/stb",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
+    },
+    "TINYOBJ": {
+        "link": "https://github.com/tinyobjloader/tinyobjloader",
+        "branch": "release",
+        "depth": 1,
+        "unshallow": false
+    },
+    "VMA": {
+        "link": "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator",
+        "branch": "master",
+        "depth": 1,
+        "unshallow": false
     }
 }

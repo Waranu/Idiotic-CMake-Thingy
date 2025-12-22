@@ -1,45 +1,104 @@
 cmake_minimum_required(VERSION 3.28)
 
-
-project(game VERSION 1.0.0 LANGUAGES C CXX)
+project(game LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CURRENT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build)
-set(CMAKE_BUILD_TYPE Debug)
 
-# Define options for libraries (these will be cache variables)
-option(SDL2 "Enable SDL2" OFF)
-option(IMGUI "Enable Imgui" OFF)
-option(BOX2D "Enable Box2d" OFF)
-option(CIMGUI "Enable Cimgui" OFF)
-option(RAYLIB "Enable Raylib" OFF)
-option(PREFIXED_RAYLIB "Enable Prefixed Raylib" OFF)
-option(SDL3 "Enable SDL3" ON)
-option(D3D11 "Enable D3D11" )
-option(DXTK "Enable DXTK" OFF)
-option(SOKOL "Enable Sokol" OFF)
-option(NUKLEAR "Enable Nuklear" OFF)
-option(GLAD "Enable GLAD" OFF)
-option(GLFW "Enable GLFW" OFF)
-option(ENET "Enable ENET" OFF)
+option(SDL2 "Include SDL2" OFF)
+option(SDL3 "Include SDL3" ON)
+option(GLFW "Include GLFW" OFF)
+option(D3D11 "Include D3D11" OFF)
+option(DXTK "Include DXTK" OFF)
+option(GLAD "Include GLAD." OFF)
+option(OPENGL "Include OPENGL." OFF)
 option(MAGIC_ENUM "Include Magic Enum" OFF)
+option(WEBGPU "Include WebGPU-Dawn" OFF)
+option(GLM "Include GLM" OFF)
+option(VULKAN "Include Vulkan" OFF)
+option(VKBOOTSTRAP "Include VkBootstrap" OFF)
+option(STBLIBS "Include Stb Libs" OFF)
+option(VMA "Include VMA" OFF)
+option(TINYOBJ "Include TinyOBJ" OFF)
 
-file(GLOB_RECURSE SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-add_executable(game ${SRC})
+file(GLOB_RECURSE game_src ${CMAKE_CURRENT_SOURCE_DIR}/src/**.cpp)
+
+add_executable(game)
+
+target_sources(game PRIVATE ${game_src})
+target_compile_options(game PRIVATE -Wno-switch-default)
 target_compile_features(game PRIVATE cxx_std_23)
 
-# Library-specific configuration
-if(SDL2)
-    message("Including SDL3.")
+if(TINYOBJ)
+    add_subdirectory(deps/tinyobjloader)
 
-    # option(SDL_STATIC "Enable/Disable static linking for SDL2" ON)
-    option(SDL_SHARED "Enable/Disable shared linking for SDL2" OFF)
-    set(sdl_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL)
-    set(sdl_build_path ${sdl_path}/build)
-    file(MAKE_DIRECTORY ${sdl_build_path})
-    add_subdirectory(${sdl_path} ${sdl_build_path} EXCLUDE_FROM_ALL)
-    target_link_libraries(game PRIVATE SDL2::SDL2main SDL2::SDL2-static)
+    target_link_libraries(game PRIVATE tinyobjloader)
+endif()
+
+if(VMA)
+    add_subdirectory(deps/VulkanMemoryAllocator)
+    target_link_libraries(YourGameEngine PRIVATE GPUOpen::VulkanMemoryAllocator)
+endif()
+
+if(STBLIBS)
+    set(stb_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/stb)
+
+    add_library(stb_libs STATIC ${stb_path}/stb_image_impl.c ${stb_path}/stb_truetype_impl.c)
+
+    target_include_directories(stb_libs PUBLIC ${stb_path}/)
+
+    target_include_directories(game PRIVATE stb_libs)
+endif()
+
+if(VULKAN)
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(game PRIVATE Vulkan::Vulkan)
+
+    if(VKBOOTSTRAP)
+        add_subdirectory(deps/vk-bootstrap)
+        target_link_libraries(game PRIVATE vk-bootstrap::vk-bootstrap)
+    endif()
+
+    find_program(GLSLC glslc REQUIRED)
+    set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders)
+    set(SPIRV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/shaders)
+
+    file(GLOB_RECURSE GLSLC_SHADERS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag)
+
+    foreach(SHADER ${GLSLC_SHADERS})
+        get_filename_component(FILE ${SHADER} NAME)
+        set(OUTPUT_SHADER ${SPIRV_DIR}/${FILE}.spv)
+
+        add_custom_command(
+            OUTPUT ${OUTPUT_SHADER}
+            COMMAND ${GLSLC} ${SHADER} -o ${OUTPUT_SHADER}
+            DEPENDS ${SHADER}
+            COMMENT "Compiling shader ${FILE}"
+        )
+        list(APPEND SPIRV_SHADERS ${OUTPUT_SHADER})
+    endforeach()
+
+    add_custom_target(shaders ALL DEPENDS ${SPIRV_SHADERS})
+    add_dependencies(game shaders)
+endif()
+
+if(GLM)
+    add_subdirectory(deps/glm)
+    option(BUILD_SHARED_LIBS "Building GLM statically" ON)
+    target_link_libraries(game PRIVATE glm::glm)
+endif()
+
+if(WEBGPU)
+    add_subdirectory(deps/WebGPU)
+    set(WEBGPU_LINK_TYPE STATIC)
+    target_link_libraries(game PRIVATE webgpu)
+endif()
+
+if(DXTK)
+    message("Including DXTK")
+    option(BUILD_SHARED_LIBS "Building DXTK statically" ON)
+    add_subdirectory(deps/DirectXTK deps/DirectXTK/build)
+    target_link_libraries(game PUBLIC DirectXTK)
 endif()
 
 if(SDL3)
@@ -53,116 +112,41 @@ if(SDL3)
     target_link_libraries(game PRIVATE SDL3::SDL3-static)
 endif()
 
-if(BOX2D)
-    message(STATUS "Including library: BOX2D")
-    setup_library(box2d https://github.com/erincatto/box2d.git main)
-    target_link_libraries(game PRIVATE box2d)
-endif()
-
-if(PREFIXED_RAYLIB)
-    message(STATUS "Including library: Raylib")
-    set(raylib_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed-raylib/build)
-    file(MAKE_DIRECTORY ${raylib_build_dir})
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Enable building Prefixed-Raylib static library" FORCE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor/prefixed-raylib ${raylib_build_dir})
-    target_link_libraries(game PRIVATE raylib)
-endif()
-
-if(RAYLIB)
-    message(STATUS "Including library: Raylib")
-    set(raylib_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib/build)
-    file(MAKE_DIRECTORY ${raylib_build_dir})
-    
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/raylib ${raylib_build_dir})
-    target_link_libraries(game PRIVATE raylib)
-endif()
-
-
-
-if(IMGUI)
-    message(STATUS "Including library: IMGUI")
-    set(imgui_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/imgui)
-    set(imgui_backend_path ${imgui_path}/backends)
-    set(imgui_table_src ${imgui_path}/imgui_tables.cpp)
-    set(imgui_sources
-        ${imgui_path}/imgui.cpp
-        ${imgui_path}/imgui_draw.cpp
-        ${imgui_path}/imgui_demo.cpp
-        ${imgui_path}/imgui_widgets.cpp
-        ${imgui_table_src}
-    )
-
-    if(SDL2 AND NOT SOKOL)
-        list(APPEND imgui_sources
-            ${imgui_backend_path}/imgui_impl_sdl2.cpp
-            ${imgui_backend_path}/imgui_impl_opengl3.cpp)
-        add_compile_definitions(-DSDL_MAIN_HANDLED)
-    endif()
-
-    if(PREFIXED_RAYLIB)
-        list(APPEND imgui_sources ${imgui_backend_path}/rlImGui.cpp)
-    endif()
-
-    add_library(imgui STATIC)
-    target_include_directories(imgui PUBLIC ${imgui_path}/)
-    target_include_directories(imgui PUBLIC ${imgui_backend_path}/)
-    target_sources(imgui PRIVATE ${imgui_sources})
-
-    if(SDL AND NOT SOKOL)
-        target_include_directories(imgui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL/include)
-        target_link_libraries(imgui PRIVATE SDL2::SDL2-static opengl32)
-    elseif(PREFIXED_RAYLIB)
-        target_link_libraries(imgui PRIVATE raylib)
-    else()
-    endif()
-
-    target_link_libraries(game PRIVATE imgui opengl32)
-endif()
-
-if(SOKOL)
-    message(STATUS "Including library: SOKOL")
-    set(sokol_path ${${CMAKE_CURRENT_SOURCE_DIR}/deps/sokol})
-    add_library(sokol_static STATIC)
-    target_include_directories(sokol_static PUBLIC ${sokol_path}/)
-    target_compile_definitions(sokol_impl PRIVATE SOKOL_IMPL)
-    target_sources(sokol_path PRIVATE ${sokol_path}/sokol_impl.c)
-    target_link_libraries(game PRIVATE sokol_impl)
-endif()
-
-if(NUKLEAR)
-    message(STATUS "Including library: NUKLEAR")
-    add_library(nuklear_static STATIC)
-    set(nuklear_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear)
-    target_include_directories(nuklear_static PUBLIC ${nuklear_path}/)
-    target_sources(nuklear_static PRIVATE ${nuklear_path}/nuklear.c)
-    target_link_libraries(game PRIVATE nuklear_static)
-
-    if(((SDL2 OR SDL3) AND GLAD) AND NOT SOKOL)
-        target_include_directories(game PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear/demo/sdl_opengl3/
-        )
-        target_link_libraries(game PRIVATE opengl32)
-    elseif((SDL2 OR SDL3) AND NOT GLAD AND NOT SOKOL)
-        target_include_directories(game PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear/demo/sdl_renderer/
-        )
-    elseif(PREFIXED_RAYLIB)
-        target_include_directories(game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/Nuklear/demo/raylib)
-    endif()
-endif()
-
 if(GLAD)
     message("Including GLAD.")
     set(glad_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/glad)
 
-   
+    # create the library with the source file in the add_library call
     add_library(glad STATIC ${glad_path}/src/glad.c)
-    target_include_directories(glad PUBLIC ${glad_path}/include) 
-    target_include_directories(game PUBLIC ${glad_path}/include/)
+    target_include_directories(glad PUBLIC ${glad_path}/include) # exported by the glad target
+    target_include_directories(game PUBLIC ${glad_path}/include/) # exported by the glad target
 
+    # link glad to the executable (game then sees the include paths transitively)
     target_link_libraries(game PRIVATE glad)
 endif()
+
+if(SDL2)
+    message("Including SDL3.")
+
+    option(SDL_STATIC "Enable/Disable static linking for SDL2" ON)
+    option(SDL_SHARED "Enable/Disable shared linking for SDL2" OFF)
+    set(sdl_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/SDL)
+    set(sdl_build_path ${sdl_path}/build)
+    file(MAKE_DIRECTORY ${sdl_build_path})
+    add_subdirectory(${sdl_path} ${sdl_build_path} EXCLUDE_FROM_ALL)
+    target_link_libraries(game PRIVATE SDL2::SDL2main SDL2::SDL2-static)
+endif()
+
+if(GLFW)
+    message("Including GLFW.")
+    set(GLFW_LIBRARY_TYPE STATIC)
+    set(glfw_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw)
+    set(glfw_build_path ${glfw_path}/build)
+    file(MAKE_DIRECTORY ${glfw_build_path})
+    add_subdirectory(${glfw_path} ${glfw_build_path} EXCLUDE_FROM_ALL)
+    target_link_libraries(game PRIVATE glfw)
+endif()
+
 if(D3D11)
     message("Including D3D11.")
     target_link_libraries(game PRIVATE d3d11.lib
@@ -176,53 +160,23 @@ if(D3D11)
     add_dependencies(game copy_shaders)
 endif()
 
-if(DXTK)
-    message("Including DXTK")
-    option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
-    add_subdirectory(deps/DirectXTK deps/DirectXTK/build)
-    target_link_libraries(game PUBLIC DirectXTK)
-endif()
-
-if(GLFW)
-    message("Including GLFW.")
-    set(GLFW_LIBRARY_TYPE STATIC)
-    set(glfw_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw)
-    set(glfw_build_path ${glfw_path}/build)
-    file(MAKE_DIRECTORY ${glfw_build_path})
-    add_subdirectory(${glfw_path} ${glfw_build_path} EXCLUDE_FROM_ALL)
-    target_link_libraries(game PRIVATE glfw)
-endif()
 if(OPENGL)
     message("Including OpenGL.")
     find_package(OpenGL REQUIRED)
+
     if(WIN32)
         target_link_libraries(game PRIVATE OpenGL::GL gdi32)
     else()
-    find_package(Threads REQUIRED)
-find_package(X11 REQUIRED) 
-    target_link_libraries(game PRIVATE OpenGL::GL Threads::Threads ${X11_LIBRARIES} )
+        find_package(Threads REQUIRED)
+        find_package(X11 REQUIRED)
+        target_link_libraries(game PRIVATE OpenGL::GL Threads::Threads
+            ${X11_LIBRARIES})
     endif()
-     add_custom_target(copy_shaders ALL
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
-        ${CMAKE_CURRENT_SOURCE_DIR}/build/shaders
-        COMMENT "Copying shaders to build directory"
-    )
-    add_dependencies(game copy_shaders)
 endif()
-
-if(ENET)
-    set(enet_build_dir ${CMAKE_CURRENT_SOURCE_DIR}/deps/enet/build)
-    file(MAKE_DIRECTORY ${enet_build_dir})
-    set(ENET_STATIC ON CACHE BOOL "Enable building Raylib-cpp static library" FORCE)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/enet ${enet_build_dir})
-    target_link_libraries(game PRIVATE enet_static)
-endif()
-
 
 if(MAGIC_ENUM)
     message("Including Magic Enum")
-    set(magic_enum_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/magic_enum-0.9.7)
+    set(magic_enum_path ${CMAKE_CURRENT_SOURCE_DIR}/deps/magic_enum)
     file(MAKE_DIRECTORY ${magic_enum_path}/build)
     add_subdirectory(${magic_enum_path} ${magic_enum_path}/build EXCLUDE_FROM_ALL)
 
