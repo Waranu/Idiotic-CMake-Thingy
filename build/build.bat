@@ -1,1 +1,0 @@
-cmake .. -G "MinGW Makefiles" -DPREFIXED_RAYLIB=ON -DIMGUI=ON

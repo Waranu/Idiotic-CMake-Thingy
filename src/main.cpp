@@ -1,57 +1,94 @@
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_gpu.h>
-#include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
+//------------------------------------------------------------------------------
+//  triangle-sapp.c
+//  Simple 2D rendering from vertex buffer.
+//------------------------------------------------------------------------------
+#include "sokol_app.h"
+#include "sokol_gfx.h"
+#include "sokol_log.h"
+#include "sokol_glue.h"
+#include "assets/triangle.glsl.h"
 
-#include "SDL3/SDL_events.h"
-#include "SDL3/SDL_init.h"
-#include "SDL3/SDL_keycode.h"
-#include "SDL3/SDL_video.h"
+// application state
+static struct {
+    sg_pipeline pip;
+    sg_bindings bind;
+    sg_pass_action pass_action;
+} state;
 
-uint32_t width = 1024;
-uint32_t height = 800;
+static void init(void) {
 
-int main() {
-    if ( !SDL_Init( SDL_INIT_VIDEO ) ) return -1;
+    sg_desc desc = {
 
-    SDL_Window* window = SDL_CreateWindow(
-        "A GPU Window", width, height, SDL_EVENT_WINDOW_SHOWN );
+        .environment = sglue_environment(),
+        .logger.func = slog_func,
+    };
 
-    SDL_GPUDevice* gpu = SDL_CreateGPUDevice(
-        SDL_GPU_SHADERFORMAT_SPIRV, true, nullptr );
+    sg_setup(&desc);
 
-    if ( !SDL_ClaimWindowForGPUDevice( gpu, window ) ) {
-        printf( "Failed to claim window for GPU\n" );
-        return -1;
-    }
+    // a vertex buffer with 3 vertices and view for binding
+    float vertices[] = {
+        // positions            // colors
+         0.0f,  0.5f, 0.5f,     1.0f, 0.0f, 0.0f, 1.0f,
+         0.5f, -0.5f, 0.5f,     0.0f, 1.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.5f,     0.0f, 0.0f, 1.0f, 1.0f
+    };
+    sg_buffer_desc buffer = {
+        .data = SG_RANGE(vertices),
+        .label = "vertex-buffer"
+    };
+    state.bind.vertex_buffers[0] = sg_make_buffer(&buffer);
 
-    bool run = true;
-    SDL_Event event = {};
-    while ( run ) {
-        while ( SDL_PollEvent( &event ) ) {
-            switch ( event.type ) {
-                case SDL_EVENT_QUIT:
-                    run = false;
-                    break;
-                case SDL_EVENT_KEY_DOWN:
-                    if ( event.key.key == SDLK_ESCAPE ) {
-                        run = false;
-                    }
-                    break;
+    // create shader from code-generated sg_shader_desc
+    sg_shader shd = sg_make_shader(triangle_shader_desc(sg_query_backend()));
+
+    // create a pipeline object (default render states are fine for triangle)
+    sg_pipeline_desc pip_desc = {
+        .shader = shd,
+        
+        // if the vertex layout doesn't have gaps, don't need to provide strides and offsets
+        .layout = {
+            .attrs = {
+                [ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT3,
+                [ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4
             }
-        }
-    }
+        },
+        .label = "triangle-pipeline"
+    };
+    state.pip = sg_make_pipeline(&pip_desc);
 
-    SDL_GPUCommandBuffer* commandBuffer =
-        SDL_AcquireGPUCommandBuffer( gpu );
+    // a pass action to clear framebuffer to black
+    state.pass_action = (sg_pass_action) {
+        .colors[0] = { .load_action=SG_LOADACTION_CLEAR, .clear_value={0.0f, 0.0f, 0.0f, 1.0f } }
+    };
+}
 
-    SDL_GPUTexture* swapchain = nullptr;
-    SDL_WaitAndAcquireGPUSwapchainTexture(
-        commandBuffer, window, &swapchain, &width, &height );
+void frame(void) {
+    sg_pass render_pass = {
+        .action = state.pass_action, .swapchain = sglue_swapchain() };
 
-    assert( SDL_SubmitGPUCommandBuffer( commandBuffer ) );
+    sg_begin_pass(&render_pass);
+    sg_apply_pipeline(state.pip);
+    sg_apply_bindings(&state.bind);
+    sg_draw(0, 3, 1);
+    sg_end_pass();
+    sg_commit();
+}
 
-    SDL_Quit();
-    return 0;
+void cleanup(void) {
+    sg_shutdown();
+}
+
+sapp_desc (int argc, char* argv[]) {
+    (void)argc; (void)argv;
+    return (sapp_desc){
+        .init_cb = init,
+        .frame_cb = frame,
+        .cleanup_cb = cleanup,
+
+        .width = 640,
+        .height = 480,
+        .window_title = "triangle-sapp.c",
+        .icon.sokol_default = true,
+        .logger.func = slog_func,
+    };
 }

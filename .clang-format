@@ -1,11 +1,15 @@
 Language: Cpp
-BasedOnStyle: Google
+BasedOnStyle: LLVM
 IndentWidth: 4
-ColumnLimit: 65
+ColumnLimit: 55
+
 SpacesInParentheses: true
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+AlignAfterOpenBracket: Align # Changed from false
 
-MaxEmptyLinesToKeep: 1         # Allow max 1 consecutive blank line
-
-
-RemoveSemicolon: true          # Remove redundant semicolons
+BracedInitializerIndentWidth: 4
 SpacesInContainerLiterals: false
+MaxEmptyLinesToKeep: 1
+ContinuationIndentWidth: 4

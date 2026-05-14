@@ -112,5 +112,17 @@
         "branch": "master",
         "depth": 1,
         "unshallow": false
+    },
+    "WEBGPU": {
+        "link": "https://github.com/eliemichel/WebGPU-distribution",
+        "branch": "main",
+        "depth": 1,
+        "unshallow": false
+    },
+    "SPDLOG": {
+        "link": "https://github.com/gabime/spdlog",
+        "branch": "v1.x",
+        "depth": 1,
+        "unshallow": false
     }
 }

@@ -1,12 +1,14 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.21)
 
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF CACHE BOOL "Disable scanning for C++ module imports" FORCE)
 project(game LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_EXTENSIONS ON)
 
 option(SDL2 "Include SDL2" OFF)
-option(SDL3 "Include SDL3" ON)
+option(SDL3 "Include SDL3" OFF)
 option(GLFW "Include GLFW" OFF)
 option(D3D11 "Include D3D11" OFF)
 option(DXTK "Include DXTK" OFF)
@@ -19,7 +21,11 @@ option(VULKAN "Include Vulkan" OFF)
 option(VKBOOTSTRAP "Include VkBootstrap" OFF)
 option(STBLIBS "Include Stb Libs" OFF)
 option(VMA "Include VMA" OFF)
+option(SPDLOG "Include SPDLOG" OFF)
 option(TINYOBJ "Include TinyOBJ" OFF)
+option(LIBASSERT "Include Libassert" OFF)
+option(IMGUI "Include Imgui" OFF)
+option(SOKOL "Include Sokol" ON)
 
 file(GLOB_RECURSE game_src ${CMAKE_CURRENT_SOURCE_DIR}/src/**.cpp)
 
@@ -28,6 +34,68 @@ add_executable(game)
 target_sources(game PRIVATE ${game_src})
 target_compile_options(game PRIVATE -Wno-switch-default)
 target_compile_features(game PRIVATE cxx_std_23)
+target_compile_features(game PRIVATE c_std_23)
+
+if(IMGUI)
+    message(STATUS "Including library: IMGUI")
+    set(imgui_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/imgui)
+    set(imgui_backend_path ${imgui_path}/backends)
+    set(imgui_table_src ${imgui_path}/imgui_tables.cpp)
+    set(imgui_sources
+        ${imgui_path}/imgui.cpp
+        ${imgui_path}/imgui_draw.cpp
+        ${imgui_path}/imgui_demo.cpp
+        ${imgui_path}/imgui_widgets.cpp
+        ${imgui_table_src}
+    )
+
+    if(SDL2 AND NOT SOKOL)
+        list(APPEND imgui_sources
+            ${imgui_backend_path}/imgui_impl_sdl2.cpp
+            ${imgui_backend_path}/imgui_impl_opengl3.cpp)
+    endif()
+
+    if(PREFIXED_RAYLIB)
+        list(APPEND imgui_sources ${imgui_backend_path}/rlImGui.cpp)
+    endif()
+
+    add_library(imgui STATIC)
+    target_include_directories(imgui PUBLIC ${imgui_path}/)
+    target_include_directories(imgui PUBLIC ${imgui_backend_path}/)
+    target_sources(imgui PRIVATE ${imgui_sources})
+
+    if(SDL AND NOT SOKOL)
+        target_include_directories(imgui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/SDL/include)
+        target_link_libraries(imgui PRIVATE SDL2::SDL2-static opengl32)
+    elseif(PREFIXED_RAYLIB)
+        target_link_libraries(imgui PRIVATE raylib)
+    else()
+    endif()
+
+    target_link_libraries(game PRIVATE imgui opengl32)
+endif()
+
+if(LIBASSERT)
+    option(LIBASSERT_USE_EXTERNAL_CPPTRACE "Use deps/cpp-traced" ON)
+    add_subdirectory(vendor/libassert)
+    target_link_libraries(game PRIVATE libassert::assert)
+
+    if(WIN32)
+        add_custom_command(
+            TARGET game POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:libassert::assert>
+            $<TARGET_FILE_DIR:game>
+        )
+    endif()
+endif()
+
+if(SPDLOG)
+    option(BUILD_SHARED_LIBS "Building Spdlog statically" OFF)
+    add_subdirectory(deps/spdlog)
+
+    target_link_libraries(game PRIVATE spdlog::spdlog)
+endif()
 
 if(TINYOBJ)
     add_subdirectory(deps/tinyobjloader)
@@ -37,7 +105,7 @@ endif()
 
 if(VMA)
     add_subdirectory(deps/VulkanMemoryAllocator)
-    target_link_libraries(YourGameEngine PRIVATE GPUOpen::VulkanMemoryAllocator)
+    target_link_libraries(game PRIVATE GPUOpen::VulkanMemoryAllocator)
 endif()
 
 if(STBLIBS)
@@ -45,13 +113,15 @@ if(STBLIBS)
 
     add_library(stb_libs STATIC ${stb_path}/stb_image_impl.c ${stb_path}/stb_truetype_impl.c)
 
-    target_include_directories(stb_libs PUBLIC ${stb_path}/)
+    target_include_directories(stb_libs PUBLIC ${stb_path})
 
-    target_include_directories(game PRIVATE stb_libs)
+    target_include_directories(game PUBLIC ${stb_path})
+    target_link_libraries(game PRIVATE stb_libs)
 endif()
 
 if(VULKAN)
     find_package(Vulkan REQUIRED)
+    target_include_directories(game PUBLIC Vulkan::Vulkan)
     target_link_libraries(game PRIVATE Vulkan::Vulkan)
 
     if(VKBOOTSTRAP)
@@ -84,24 +154,48 @@ endif()
 
 if(GLM)
     add_subdirectory(deps/glm)
-    option(BUILD_SHARED_LIBS "Building GLM statically" ON)
+    option(BUILD_SHARED_LIBS "Building GLM statically" OFF)
     target_link_libraries(game PRIVATE glm::glm)
 endif()
 
 if(WEBGPU)
-    add_subdirectory(deps/WebGPU)
-    set(WEBGPU_LINK_TYPE STATIC)
+    set(WEBGPU_BACKEND DAWN)
+
+    option(WEBGPU_BUILD_FROM_SOURCE "Build from source" ON)
+
+    add_subdirectory(deps/WebGPU-distribution)
     target_link_libraries(game PRIVATE webgpu)
 endif()
 
 if(DXTK)
     message("Including DXTK")
-    option(BUILD_SHARED_LIBS "Building DXTK statically" ON)
+    option(BUILD_SHARED_LIBS "Building DXTK statically" OFF)
     add_subdirectory(deps/DirectXTK deps/DirectXTK/build)
-    target_link_libraries(game PUBLIC DirectXTK)
+    target_link_libraries(game PRIVATE DirectXTK)
 endif()
 
 if(SDL3)
+    find_program(GLSLC glslc REQUIRED)
+    set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders)
+    set(SPIRV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/shaders)
+
+    file(GLOB_RECURSE GLSLC_SHADERS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag)
+
+    foreach(SHADER ${GLSLC_SHADERS})
+        get_filename_component(FILE ${SHADER} NAME)
+        set(OUTPUT_SHADER ${SPIRV_DIR}/${FILE}.spv)
+
+        add_custom_command(
+            OUTPUT ${OUTPUT_SHADER}
+            COMMAND ${GLSLC} ${SHADER} -o ${OUTPUT_SHADER}
+            DEPENDS ${SHADER}
+            COMMENT "Compiling shader ${FILE}"
+        )
+        list(APPEND SPIRV_SHADERS ${OUTPUT_SHADER})
+    endforeach()
+
+    add_custom_target(shaders ALL DEPENDS ${SPIRV_SHADERS})
+    add_dependencies(game shaders)
     message("Including SDL3.")
     option(SDL_STATIC "Enable/Disable static linking for SDL3" ON)
     option(SDL_SHARED "Enable/Disable shared linking for SDL3" OFF)
@@ -181,4 +275,49 @@ if(MAGIC_ENUM)
     add_subdirectory(${magic_enum_path} ${magic_enum_path}/build EXCLUDE_FROM_ALL)
 
     target_link_libraries(game PRIVATE magic_enum)
+endif()
+
+if(SOKOL)
+    set(sokol_path ${CMAKE_CURRENT_SOURCE_DIR}/vendor/sokol)
+
+    set(SOKOL_HEADERS
+        ${sokol_path}/sokol_gfx.h
+        ${sokol_path}/sokol_app.h
+        ${sokol_path}/sokol_imgui.h
+        ${sokol_path}/sokol_glue.h)
+
+    add_library(sokol STATIC ${sokol_path}/sokol.cpp ${SOKOL_HEADERS})
+    target_include_directories(sokol INTERFACE ${sokol_path})
+    target_link_libraries(sokol PUBLIC imgui)
+    target_link_libraries(game PRIVATE sokol)
+
+    # Compile shaders from src/assets (not build/assets - glob runs at configure time)
+    find_program(SOKOL_SHDC sokol_shdc REQUIRED)
+    set(SHADER_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/assets)
+    set(SHADER_OUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/assets)
+
+    file(GLOB_RECURSE GLSL_SHADERS ${SHADER_SRC_DIR}/*.glsl)
+
+    foreach(SHADER ${GLSL_SHADERS})
+        get_filename_component(FILE ${SHADER} NAME)
+        set(OUTPUT_SHADER ${SHADER_OUT_DIR}/${FILE}.h)
+        add_custom_command(
+            OUTPUT ${OUTPUT_SHADER}
+            COMMAND ${SOKOL_SHDC} -i ${SHADER} -o ${OUTPUT_SHADER} -l glsl430:hlsl5 -f sokol
+            DEPENDS ${SHADER}
+            COMMENT "Compiling shader ${FILE}"
+        )
+        list(APPEND COMPILED_SHADERS ${OUTPUT_SHADER})
+    endforeach()
+
+    # Copy assets to build dir
+    add_custom_target(copy_assets ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/assets
+        ${CMAKE_CURRENT_SOURCE_DIR}/build/assets
+        COMMENT "Copying assets to build directory"
+    )
+
+    add_custom_target(shaders ALL DEPENDS ${COMPILED_SHADERS})
+    add_dependencies(game shaders copy_assets)
 endif()

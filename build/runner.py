@@ -148,6 +148,12 @@ def main():
             "-DCMAKE_C_COMPILER=clang-cl",
             "-DCMAKE_CXX_COMPILER=clang-cl",
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+            "-DCMAKE_CXX_SCAN_FOR_MODULES=OFF",
+            # "Visual Studio 18 2026",
+            # "-T",
+            # "ClangCL",
+            # "-A",
+            # "x64",
         ]
         try:
             run_cmd_live(cmake_cmd, cwd=str(cwd))
